@@ -14,13 +14,22 @@ Ces skills permettent à Claude de connaître précisément cette stack — widg
 
 ---
 
+## Ressources de base
+
+La documentation officielle des widgets ODS à consulter en priorité :
+
+- **GitHub widgets ODS** : https://github.com/opendatasoft/ods-widgets
+- **Documentation des widgets** : https://help.opendatasoft.com/widgets/#/introduction/
+
+---
+
 ## Skills disponibles
 
 | Skill | Description |
 |---|---|
-| [huwise-ods-widgets](./huwise-ods-widgets/SKILL.md) | Développement de pages et dashboards avec les widgets ODS en AngularJS : `ods-dataset-context`, `ods-chart`, `ods-table`, `ods-map`, `ods-select`, `ods-adv-analysis`, `ods-results`, tableaux CSS Grid, patterns AngularJS, DSFR |
-| [header-widgets](./header-widgets/SKILL.md) | Configuration et personnalisation du header (bandeau de navigation) : placeholders `##menu##`, `##logo##`, `ods-responsive-menu`, dropdowns custom, header DSFR, sélecteurs CSS mobile |
-| [footer-widgets](./footer-widgets/SKILL.md) | Configuration et personnalisation du footer (pied de page) : placeholders `##manage-cookies##`, `##legal##`, patterns ODS natif / DSFR / full custom, logos partenaires |
+| [huwise-ods-widgets](./huwise-ods-widgets.md) | Développement de pages et dashboards avec les widgets ODS en AngularJS : `ods-dataset-context`, `ods-chart`, `ods-table`, `ods-map`, `ods-select`, `ods-adv-analysis`, `ods-results`, tableaux CSS Grid, patterns AngularJS, DSFR |
+| [header-widgets](./header-widgets.md) | Configuration et personnalisation du header (bandeau de navigation) : placeholders `##menu##`, `##logo##`, `ods-responsive-menu`, dropdowns custom, header DSFR, sélecteurs CSS mobile |
+| [footer-widgets](./footer-widgets.md) | Configuration et personnalisation du footer (pied de page) : placeholders `##manage-cookies##`, `##legal##`, patterns ODS natif / DSFR / full custom, logos partenaires |
 
 ---
 
@@ -28,10 +37,10 @@ Ces skills permettent à Claude de connaître précisément cette stack — widg
 
 ### Option 1 — Référencer le fichier raw GitHub dans le system prompt
 
-Copier l'URL raw du fichier SKILL.md et l'inclure dans votre system prompt ou dans votre configuration Claude Code :
+Copier l'URL raw du fichier `.md` et l'inclure dans votre system prompt ou dans votre configuration Claude Code :
 
 ```
-https://raw.githubusercontent.com/ornetti/huwise-widget-skills/main/huwise-ods-widgets/SKILL.md
+https://raw.githubusercontent.com/ornetti/huwise-widget-skills/main/huwise-ods-widgets.md
 ```
 
 ### Option 2 — Coller le contenu directement dans une conversation
@@ -57,12 +66,9 @@ Voir le skill Huwise pour les patterns ODS widgets.
 ```
 huwise-widget-skills/
 ├── README.md
-├── huwise-ods-widgets/
-│   └── SKILL.md          ← Widgets ODS, dashboards, cartes, tableaux
-├── header-widgets/
-│   └── SKILL.md          ← Header, navigation, menu responsive
-└── footer-widgets/
-    └── SKILL.md          ← Footer, liens légaux, logos
+├── huwise-ods-widgets.md   ← Widgets ODS, dashboards, cartes, tableaux
+├── header-widgets.md       ← Header, navigation, menu responsive
+└── footer-widgets.md       ← Footer, liens légaux, logos
 ```
 
 ---
