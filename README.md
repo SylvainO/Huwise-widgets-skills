@@ -2,8 +2,6 @@
 
 Skills Claude réutilisables pour l'écosystème **Huwise** (ex-OpenDataSoft).
 
-Ces skills sont des fichiers Markdown structurés qui instruisent Claude sur les patterns, pièges et exemples de code spécifiques à la plateforme Huwise. Ils s'adressent aux développeurs et intégrateurs de portails de données publiques françaises.
-
 ---
 
 ## Ce qu'est ce repo
