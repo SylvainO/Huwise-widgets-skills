@@ -1,6 +1,14 @@
 ---
 name: huwise-ods-widgets
-description: "Développement de pages et dashboards sur la plateforme Huwise (ex-OpenDataSoft) avec les widgets ODS en AngularJS. Utiliser cette skill dès que le contexte implique : widgets ODS (ods-dataset-context, ods-chart, ods-table, ods-map, ods-select, ods-simple-tabs, ods-adv-analysis, ods-results, ods-facets, etc.), code éditeur Huwise, portails de données publiques françaises, CSS pour portails ODS, Design Système d'État (DSFR), tableaux en CSS Grid avec colonnes sticky, filtrage de datasets, ou toute question liée à l'écosystème OpenDataSoft/Huwise."
+description: >
+  This skill should be used when developing pages or dashboards on the Huwise (OpenDataSoft) platform
+  with ODS widgets and AngularJS directives — including ods-dataset-context, ods-adv-analysis,
+  ods-results, ods-select, ods-map, ods-chart, ods-simple-tabs, ods-facets, etc.
+  Also activate for: Huwise code editor (HTML+CSS), French open data portals, ODS portal CSS,
+  Design Système d'État (DSFR), CSS Grid tables with sticky columns, dataset filtering,
+  directory/annuaire layouts (sidebar + cards + map), or any question related to the
+  OpenDataSoft/Huwise ecosystem.
+version: 1.0.0
 ---
 
 # Huwise / ODS Widgets — Skill de référence
@@ -17,8 +25,6 @@ description: "Développement de pages et dashboards sur la plateforme Huwise (ex
 - GitHub widgets : https://github.com/opendatasoft/ods-widgets
 - Code Library (exemples) : https://codelibrary.opendatasoft.com/
 - User Guide Huwise : https://userguide.huwise.com/fr
-- Documentation des widgets : https://help.opendatasoft.com/widgets/#/introduction/
-- Et notamment ODS Map : https://help.opendatasoft.com/widgets/#/api/ods-widgets.directive:odsMap
 
 ### Contraintes de l'environnement
 - **Pas de contrôleur AngularJS** — tout doit rester dans le HTML via des directives (`ng-if`, `ng-repeat`, `ng-init`, `ng-click`, `ng-switch`, `ng-class`, etc.)
@@ -49,6 +55,10 @@ Déclare un ou plusieurs contextes de données. Chaque contexte est lié à un d
 - `disjunctive.champ` : active le mode "OU" pour le multi-refine
 - `sort` : tri (préfixer de `-` pour tri descendant)
 - `urlsync` : synchronise les filtres avec l'URL
+
+**⚠️ Piège `ctx-urlsync` + `ctx-parameters` :** Quand `ctx-urlsync="true"` est activé, ODS ignore complètement les `ctx-parameters` définis dans le HTML (warning console : *"There are specific parameters defined, but URL sync is enabled, so the parameters will be ignored"*). Résultat : les filtres `disjunctive`, le `q` de base, etc. ne s'appliquent jamais → filtres dropdown vides, données non filtrées.
+
+**Règle :** n'activer `ctx-urlsync="true"` que si le partage d'URL filtré est explicitement requis. Dans ce cas, initialiser tous les paramètres via des expressions AngularJS `{{ ctx.parameters['...'] = ...; "" }}` plutôt que dans l'attribut HTML.
 
 **Pattern important — Contextes séparés pour filtres et listes :**
 Quand un `ods-select` ou un `ods-adv-analysis` alimente une liste d'options ET qu'un refine s'applique au même contexte, la liste se réduit après sélection. Solution : utiliser **deux contextes séparés** — un pour la liste (jamais raffiné), un pour les visualisations (raffiné).
@@ -185,7 +195,191 @@ Utiliser des variables `chartKey` distinctes si plusieurs sections de charts coe
 
 Le `track by $index` optimise le rendu AngularJS en réutilisant les éléments DOM existants.
 
-### 2.6 `ods-simple-tabs` — Navigation par onglets
+**Pattern — Guard no-results sans flash au chargement :**
+Avec `ods-results`, le tableau `lines` est vide (`[]`) pendant le chargement initial — un `ng-if="lines.length == 0"` affiche donc un faux "aucun résultat" à chaque page. Solution : utiliser un KPI compteur et tester `!== null` (pas `!== undefined`).
+
+```html
+<!-- Dans le bloc data-hidden (voir section 2.8) -->
+<div ods-adv-analysis="totalStats" ods-adv-analysis-context="ctx"
+     ods-adv-analysis-select="count(*) as total">
+    {{ values.total = (totalStats && totalStats.length > 0) ? totalStats[0].total : null; "" }}
+</div>
+
+<!-- Guard : s'affiche UNIQUEMENT quand la donnée est chargée ET vaut 0 -->
+<div class="no-results" ng-if="values.total !== null && values.total == 0">
+    Aucun résultat ne correspond à votre recherche.
+</div>
+```
+
+`values.total` part à `null` (jamais `0`) → le bloc reste caché pendant le chargement. Il apparaît uniquement quand l'API confirme 0 résultats.
+
+### 2.6 `ods-map` — Carte synchronisée avec le contexte filtré
+
+```html
+<ods-map style="height:520px"
+         no-refit="false"
+         scroll-wheel-zoom="false"
+         display-control="false"
+         search-box="false"
+         toolbar-fullscreen="true"
+         toolbar-geolocation="false"
+         basemap="jawg.light"
+         location="9,47.89333,-2.80838">
+    <ods-map-layer-group>
+        <ods-map-layer context="ctx"
+                       color="#003e6a"
+                       picto="ods-circle"
+                       show-marker="true"
+                       display="auto"
+                       shape-opacity="0.5"
+                       point-opacity="1"
+                       border-color="#FFFFFF"
+                       border-opacity="1"
+                       border-size="1"
+                       border-pattern="solid"
+                       caption="false"
+                       size="4"
+                       size-min="3"
+                       size-max="5"
+                       size-function="linear">
+        </ods-map-layer>
+    </ods-map-layer-group>
+</ods-map>
+```
+
+**Points clés :**
+- `context="ctx"` : la carte est automatiquement synchronisée avec tous les filtres actifs sur `ctx`
+- `no-refit="false"` : recadre la vue quand les résultats changent (comportement par défaut souhaitable)
+- `location="zoom,lat,lng"` : position initiale (format `"9,47.89333,-2.80838"`)
+- `basemap="jawg.light"` : fond de carte clair élégant, disponible sur les portails Huwise
+- `display="auto"` : bascule automatiquement entre points et clusters selon le zoom
+
+### 2.7 `ods-select` — Initialisation `ng-init` : piège critique
+
+Le `ods-select` stocke sa valeur dans une variable d'objet (ex. `selected.coll`). Si l'objet parent `selected` n'existe pas encore sur le scope au moment de l'initialisation du widget, AngularJS lève une erreur `Cannot set property 'coll' of undefined`.
+
+**Règle :** toujours initialiser l'objet parent sur l'élément **ancêtre** avant les `ods-select` enfants.
+
+```html
+<!-- MAUVAIS — selected n'existe pas quand ods-select s'initialise -->
+<div>
+    <ods-select ng-init="selected.coll = []" ...></ods-select>
+</div>
+
+<!-- BON — selected est créé sur le parent avant les enfants -->
+<aside ng-init="selected = {coll: [], prof: []}">
+    <ods-select ng-init="selected.coll = []" ...></ods-select>
+    <ods-select ng-init="selected.prof = []" ...></ods-select>
+</aside>
+```
+
+### 2.8 Conteneur data-hidden — Charger des KPIs sans les afficher
+
+Pour calculer des agrégats (totaux, comptes) utilisés comme KPIs ou pour alimenter des filtres, sans rien afficher dans le DOM :
+
+```html
+<div style="display:none">
+
+    <!-- Total réactif aux filtres -->
+    <div ods-adv-analysis="totalStats"
+         ods-adv-analysis-context="ctx"
+         ods-adv-analysis-select="count(*) as total">
+        {{ values.total = (totalStats && totalStats.length > 0) ? totalStats[0].total : null; "" }}
+    </div>
+
+    <!-- COUNT DISTINCT simulé : group by + .length -->
+    <div ods-adv-analysis="distinctData"
+         ods-adv-analysis-context="ctx"
+         ods-adv-analysis-select="count(*)"
+         ods-adv-analysis-group-by="mon_champ">
+        {{ values.distinctCount = distinctData.length; "" }}
+    </div>
+
+    <!-- Options dropdown (contexte fixe, jamais raffiné) -->
+    <div ods-adv-analysis="colOptions"
+         ods-adv-analysis-context="ctxlist"
+         ods-adv-analysis-select="count(*)"
+         ods-adv-analysis-group-by="mon_champ"
+         ods-adv-analysis-order-by="mon_champ"
+         ods-adv-analysis-limit="500">
+        {{ values.colOptions = colOptions; "" }}
+    </div>
+
+</div>
+```
+
+**⚠️ Initialiser `values = {}` sur le scope parent :** `ods-adv-analysis` crée un scope enfant. L'expression `{{ values.colOptions = colOptions; "" }}` remonte la donnée vers le scope parent via mutation de l'objet `values`. Si `values` n'est pas initialisé sur le scope parent, l'assignation échoue silencieusement → filtres vides, KPIs vides.
+
+```html
+<div class="data-hidden" ng-init="values = {}">
+    <div ods-adv-analysis="colOptions" ...>
+        {{ values.colOptions = colOptions; "" }}
+    </div>
+</div>
+```
+
+`ng-init="values = {}"` doit être sur un ancêtre direct de `ods-dataset-context`, **avant** les ods-adv-analysis.
+
+**`value-modifier` : préférer la string simple**
+`value-modifier="mon_champ"` (string) → `selected` sera un tableau de valeurs brutes `['Auray', 'Vannes']`, directement utilisable en refine :
+```html
+{{ ctx.parameters['refine.mon_champ'] = selected.valeurs; "" }}
+```
+Éviter `value-modifier="{'mon_champ': mon_champ}"` + `| toObject | keys` — plus complexe, inutile pour un refine standard.
+
+**⚠️ NE PAS utiliser `display:none` :** Huwise/ODS ne compile pas les directives AngularJS à l'intérieur d'un élément `display:none`. Les `ods-adv-analysis` ne s'exécutent pas et les variables restent vides (filtres vides, KPIs à 0).
+
+Masquer avec un positionnement hors-écran à la place :
+```css
+.data-hidden {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    pointer-events: none;
+}
+```
+
+**COUNT DISTINCT :** ODS ne supporte pas `count(distinct champ)` dans `ods-adv-analysis`. Contournement : grouper par le champ et lire `.length` du tableau résultant.
+
+### 2.9 Recherche textuelle personnalisée (sans `ods-text-search`)
+
+`ods-text-search` **remplace entièrement** le paramètre `q` du contexte. Si un filtre de base existe (ex. `q:'#null(date_fin)'`), il sera écrasé.
+
+Solution : `<input>` HTML standard avec `ng-model` + concaténation manuelle du `q`.
+
+```html
+<!-- Sidebar ou zone de filtres -->
+<div ng-init="search = {query: ''}">
+    <input type="text"
+           ng-model="search.query"
+           ng-model-options="{debounce: 300}"
+           placeholder="Rechercher...">
+    <button ng-if="search.query" ng-click="search.query = ''">✕</button>
+</div>
+
+<!-- Expression de mise à jour du paramètre q -->
+{{ ctx.parameters['q'] = search.query
+    ? '#null(date_fin_mandat) AND ' + search.query
+    : '#null(date_fin_mandat)'; "" }}
+```
+
+**Reset complet des filtres :**
+```html
+<button ng-click="selected.coll = []; selected.prof = []; search.query = '';
+                  ctx.parameters['q'] = '#null(date_fin_mandat)';
+                  ctx.parameters['refine.mon_champ'] = []">
+    Effacer les filtres
+</button>
+```
+
+**Notes :**
+- `ng-model-options="{debounce: 300}"` évite une requête API à chaque frappe
+- Le filtre de base (`#null(date_fin_mandat)`) doit figurer dans les deux branches du ternaire et dans le reset
+
+### 2.10 `ods-simple-tabs` — Navigation par onglets
 
 ```html
 <section class="pills-container">
@@ -242,158 +436,6 @@ Le `track by $index` optimise le rendu AngularJS en réutilisant les éléments 
 ```
 
 **Piège :** Les sélecteurs `:first-child` / `:nth-child(2)` doivent cibler les `<li>` parents, pas directement les `.ods-simple-tabs-nav-link` (car chaque lien est un enfant unique de son `<li>`, donc tous sont `:first-child`).
-
-### 2.7 `ods-map` — Cartes choroplèthes
-
-Structure de base pour une carte choroplèthe par département :
-
-```html
-<ods-map style="height: 700px"
-         no-refit="true"
-         scroll-wheel-zoom="false"
-         display-control="false"
-         search-box="false"
-         toolbar-fullscreen="true"
-         toolbar-geolocation="false"
-         basemap="ign.planv2"
-         location="6,46.5,2.5">
-    <ods-map-layer-group>
-        <ods-map-layer context="moncontexte"
-                       color-numeric-ranges="{'99.5':'#D2EDFB','102.4':'#A9D2F0','106.1':'#85B1DF','109.3':'#6093CD','129.6':'#3F74B8'}"
-                       color-numeric-range-min="69.8"
-                       show-marker="true"
-                       display="choropleth"
-                       function="AVG"
-                       expression="mon_champ_numerique"
-                       shape-opacity="0.85"
-                       point-opacity="1"
-                       border-color="#FFFFFF"
-                       border-opacity="1"
-                       border-size="1"
-                       border-pattern="solid"
-                       caption="false"
-                       title="Mon titre"
-                       size="4">
-        </ods-map-layer>
-    </ods-map-layer-group>
-</ods-map>
-```
-
-**Paramètres clés de `ods-map` :**
-- `basemap` : fond de carte — `ign.planv2`, `ign.parcellaire-express`, `jawg.light`, etc.
-- `location` : `"zoom,lat,lng"` — **le zoom DOIT être un entier** (voir piège ci-dessous)
-- `no-refit` : empêche le recadrage automatique sur les données
-- `display-control` : affiche/masque le sélecteur de couches
-- `scroll-wheel-zoom` : active/désactive le zoom à la molette
-
-**Paramètres clés de `ods-map-layer` :**
-- `display="choropleth"` : mode choroplèthe (coloration de shapes)
-- `color-numeric-ranges` : bornes de couleur, format `{'borne_haute':'#couleur'}` — utiliser le **point** comme séparateur décimal
-- `color-numeric-range-min` : borne basse de la première catégorie
-- `function` : fonction d'agrégation (`AVG`, `SUM`, `COUNT`, `MIN`, `MAX`)
-- `expression` : champ numérique à agréger
-- `caption="false"` : désactive la légende native ODS (pour utiliser une légende custom en dur)
-- `show-if` : condition AngularJS pour afficher/masquer une couche dynamiquement
-- `refine-on-click-context` : permet de raffiner un autre contexte au clic sur la carte
-
-**Piège critique — Zoom entier obligatoire :**
-L'attribut `location="zoom,lat,lng"` exige un **zoom strictement entier**. Une valeur float comme `5.5` provoque l'erreur :
-```
-"error": "Value of parameter 'clusterprecision' is not a valid value of type integer"
-```
-Solution : toujours utiliser un entier (`5`, `6`, `7`...). Pour ajuster finement le cadrage, jouer sur les coordonnées lat/lng plutôt que sur le zoom. Par exemple, pour la France métropolitaine avec légende en bas : `location="6,46.8,2.5"` (décaler le centre vers le nord).
-
-**Fonds de carte recommandés pour les portails éducation :**
-- `ign.planv2` : fond IGN Plan — sobre, adapté aux choroplèthes administratives
-- `ign.parcellaire-express` : fond cadastral très léger
-- `jawg.light` : fond clair minimaliste
-
-### 2.8 Légende custom inlined pour `ods-map`
-
-Quand `caption="false"` sur le `ods-map-layer`, on peut ajouter une légende en dur en HTML, positionnée en bas de la carte. Source : [Code Library — custom legend simple inlined](https://codelibrary.opendatasoft.com/widget-tricks/ods-map-css/#custom-legend---simple-inlined).
-
-**Structure HTML :** La légende est un sibling de `<ods-map>`, à l'intérieur d'un `<div class="map-container">` positionné en relative.
-
-```html
-<div class="map-container">
-    <ods-map style="height: 700px" ...>
-        <!-- layers -->
-    </ods-map>
-
-    <!-- Légende en dur -->
-    <div class="odswidget odswidget-map-legend">
-        <div class="odswidget-map-legend__header">
-            <div class="odswidget-map-legend__title">Mon titre</div>
-            <div class="odswidget-map-legend__label">Sous-titre</div>
-        </div>
-        <div>
-            <div class="odswidget-map-legend__choropleth-container">
-                <!-- Répéter pour chaque catégorie -->
-                <div class="odswidget-map-legend__choropleth__item">
-                    <div class="odswidget-map-legend__choropleth__item-color">
-                        <div class="odswidget-map-legend__choropleth__color-block" style="background-color: #D2EDFB;"></div>
-                    </div>
-                    <div class="odswidget-map-legend__choropleth__item-range">
-                        <div class="odswidget-map-legend__choropleth__item-range__bound">69,8
-                            <i aria-hidden="true" class="fa fa-long-arrow-right odswidget-map-legend__choropleth__item-range__bound-arrow"></i>
-                        </div>
-                        <div class="odswidget-map-legend__choropleth__item-range__bound">99,5</div>
-                    </div>
-                </div>
-                <!-- ... autres items ... -->
-            </div>
-        </div>
-    </div>
-</div>
-```
-
-**CSS pour la légende inlined :**
-```css
-.map-container {
-    position: relative;
-}
-.odswidget-map-legend__choropleth-container {
-    display: flex;
-    justify-content: space-evenly;
-}
-.odswidget.odswidget-map-legend {
-    left: 4px;
-    right: 4px;
-    width: inherit;
-    padding: 5px 5px 0 5px;
-    background-color: #ffffffd1;
-}
-.odswidget-map-legend__choropleth__item {
-    flex-direction: column;
-    align-items: center;
-}
-.odswidget-map-legend__choropleth__item-color {
-    margin: 0;
-}
-.odswidget-map-legend__choropleth__color-block {
-    width: 120px;
-}
-i.fa.fa-long-arrow-right.odswidget-map-legend__choropleth__item-range__bound-arrow {
-    margin: 10px;
-}
-.odswidget-map-legend__choropleth__item-range__bound {
-    width: inherit;
-}
-.odswidget-map-legend__choropleth__item-range {
-    font-size: inherit;
-    align-items: center;
-}
-/* Remonter les contrôles Leaflet au-dessus de la légende */
-.leaflet-bottom.leaflet-left {
-    bottom: 130px;
-}
-```
-
-**Points importants :**
-- Les valeurs dans `color-numeric-ranges` utilisent le **point** décimal (format API)
-- Les valeurs affichées dans la légende HTML utilisent la **virgule** française (format visuel)
-- La légende doit être un sibling de `<ods-map>`, pas un enfant (sinon absorbée par le widget)
-- Augmenter la `height` de la carte (700px+) pour compenser l'espace pris par la légende en bas
 
 ---
 
@@ -486,7 +528,106 @@ Pour les tableaux larges avec scroll horizontal, rendre les 2 premières colonne
 
 ---
 
-## 4. Patterns AngularJS récurrents
+## 4. Layout annuaire — Sidebar + Grille de cartes + Carte
+
+Pattern complet pour un annuaire filtrable avec carte synchronisée (testé sur portail Huwise, projet Morbihan Energies).
+
+### Structure HTML
+
+```html
+<ods-dataset-context context="ctx, ctxlist"
+    ctx-dataset="mon-dataset"
+    ctx-parameters="{'disjunctive.champ1':true,'disjunctive.champ2':true,'q':'#null(date_fin)'}"
+    ctx-urlsync="true"
+    ctxlist-dataset="mon-dataset"
+    ctxlist-parameters="{'q':'#null(date_fin)'}">
+
+    <!-- Bloc data-hidden : KPIs + options dropdown -->
+    <div style="display:none">...</div>
+
+    <!-- Header avec KPIs -->
+    <header class="me-header">...</header>
+
+    <!-- Layout 3 colonnes -->
+    <div class="me-layout">
+
+        <!-- Sidebar gauche : recherche + filtres (sticky) -->
+        <aside class="me-sidebar" ng-init="selected = {champ1: [], champ2: []}">
+            <!-- Recherche custom -->
+            <!-- ods-select filtres -->
+            <!-- Footer sidebar : compteur + reset -->
+        </aside>
+
+        <!-- Zone centrale : grille de cartes -->
+        <main class="me-cards-area">
+            <div ods-results="items" ods-results-context="ctx" ods-results-max="200">
+                <!-- Guard no-results -->
+                <!-- ng-repeat cartes -->
+            </div>
+        </main>
+
+        <!-- Carte ODS droite (sticky) -->
+        <aside class="me-map-area">
+            <div class="me-map-sticky">
+                <ods-map ...>...</ods-map>
+            </div>
+        </aside>
+
+    </div>
+</ods-dataset-context>
+```
+
+### CSS de base (layout)
+
+```css
+.me-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+    max-width: 1440px;
+    margin: 0 auto 50px;
+    padding: 0 20px;
+}
+
+/* Sidebar sticky */
+.me-sidebar {
+    flex: 0 0 280px;
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+/* Zone cartes */
+.me-cards-area { flex: 1 1 0; min-width: 0; }
+
+/* Grille responsive */
+.me-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+/* Carte ODS sticky */
+.me-map-area { flex: 0 0 380px; }
+.me-map-sticky { position: sticky; top: 20px; }
+
+/* Responsive : empiler sur mobile */
+@media (max-width: 1024px) {
+    .me-layout { flex-direction: column; }
+    .me-sidebar, .me-map-area { flex: none; width: 100%; position: static; }
+}
+```
+
+**Notes :**
+- Le header avec `clip-path` diagonal doit avoir un `padding-bottom` suffisant pour masquer le blanc derrière la diagonale
+- `margin-top: -44px` sur `.me-layout` permet au contenu de "monter" sous la pointe du clip-path
+- `ods-results-max="200"` : limiter pour les performances (l'utilisateur filtre pour réduire)
+
+---
+
+## 5. Patterns AngularJS récurrents
 
 ### Éviter le flash de contenu au chargement
 Quand des données async conditionnent l'affichage, vérifier `!== undefined` pour ne rien afficher pendant le chargement :
@@ -527,7 +668,7 @@ La syntaxe ODS est `period` en premier, `number` en second. Un warning Moment.js
 
 ---
 
-## 5. CSS — Bonnes pratiques pour portails ODS
+## 6. CSS — Bonnes pratiques pour portails ODS
 
 ### Variables CSS du portail
 Les thèmes ODS exposent des variables CSS :
@@ -560,36 +701,9 @@ Pour les portails gouvernementaux français :
 - Tokens couleur officiels : bleu France `#000091`, etc.
 - Système d'espacement basé sur multiples de 8px
 
-### ODS Layout over-ride — Flexbox pour `.row`
-
-Le layout par défaut ODS (basé sur Bootstrap 3) ne gère pas l'equal-height ni le flex-wrap. Pour les pages avec des KPI, indicateurs ou cartes côte à côte, appliquer le pattern **ODS Layout over-ride** de la [Code Library](https://codelibrary.opendatasoft.com/page-templates/ods-layout-over-ride/) :
-
-```css
-.row {
-    display: flex;
-    flex-wrap: wrap;
-}
-.row > * {
-    margin-bottom: 20px;
-    flex-grow: 1;
-}
-@media screen and (max-width: 749px) {
-    .row {
-        flex-direction: column;
-    }
-}
-```
-
-**Quand l'utiliser :**
-- Dès qu'on a des `col-md-6` ou `col-md-4` qui doivent être côte à côte avec la même hauteur
-- Pour les sections d'indicateurs/KPI en grille
-- Pour les layouts `section > div.col-md-12 > div.card` wrappés dans une `.row`
-
-**Piège :** Sans ce CSS, les `.row` n'appliquent pas `flex-wrap` et les colonnes peuvent se chevaucher ou ne pas se disposer correctement. Ce pattern est **essentiel** dès qu'on utilise des `.col-md-*` dans le code éditeur.
-
 ---
 
-## 6. Sortie attendue
+## 7. Sortie attendue
 
 Quand on génère du code pour Huwise, fournir :
 1. **Un bloc HTML** à coller dans le panneau HTML du code éditeur
@@ -598,19 +712,27 @@ Quand on génère du code pour Huwise, fournir :
 
 ---
 
-## 7. Checklist avant livraison
+## 8. Checklist avant livraison
 
+**Contextes & données :**
 - [ ] Tous les contextes nécessaires sont déclarés dans le `ods-dataset-context`
-- [ ] Les contextes pour listes d'options sont séparés des contextes filtrés
+- [ ] Les contextes pour listes d'options (`ctxlist`) sont séparés des contextes filtrés (`ctx`)
 - [ ] Le `disjunctive` est activé sur les champs multi-refine
+- [ ] Le filtre de base (`q`) est présent dans les paramètres initiaux ET dans toutes les expressions de mise à jour
+
+**AngularJS :**
 - [ ] Les `ng-repeat` utilisent `track by $index`
-- [ ] Les expressions `{{ }}` ne modifient pas de variables (utiliser `ng-init` à la place)
+- [ ] L'objet parent est initialisé avant les propriétés enfants (`ng-init="selected = {a:[], b:[]}"` sur l'ancêtre)
+- [ ] La recherche textuelle utilise un `<input>` custom + concaténation `q` (pas `ods-text-search`) si un filtre de base existe
+- [ ] Le guard no-results utilise `values.total !== null && values.total == 0` (pas `lines.length == 0`)
+
+**CSS :**
 - [ ] Les colonnes sticky ont un `background` explicite
 - [ ] Le `z-index` du header est supérieur à celui des lignes
 - [ ] Le CSS utilise les variables du portail quand elles existent
 - [ ] Les nombres sont formatés avec le pipe `number` et des parenthèses
-- [ ] Le CSS `.row` flex-wrap est présent si on utilise des `col-md-*`
-- [ ] Le zoom dans `location` de `ods-map` est un **entier** (pas de float)
-- [ ] Les `color-numeric-ranges` utilisent le **point** décimal (pas la virgule)
-- [ ] Les légendes custom sont des siblings de `<ods-map>`, pas des enfants
-- [ ] Les sections dataviz avec indicateurs ou cartes sont wrappées dans `<div class="card z-depth-1">` pour l'effet box-shadow
+- [ ] Le layout responsive est prévu (`flex-direction: column` sous 1024px)
+
+**Carte ODS :**
+- [ ] La carte partage le même `context="ctx"` que les filtres pour être synchronisée
+- [ ] `no-refit="false"` si on veut que la vue se recadre après filtrage
