@@ -6,9 +6,11 @@ description: >
   ods-results, ods-select, ods-map, ods-chart, ods-simple-tabs, ods-facets, etc.
   Also activate for: Huwise code editor (HTML+CSS), French open data portals, ODS portal CSS,
   Design Système d'État (DSFR), CSS Grid tables with sticky columns, dataset filtering,
-  directory/annuaire layouts (sidebar + cards + map), or any question related to the
+  directory/annuaire layouts (sidebar + cards + map), debugging ODSQL query errors
+  (Unknown field, StatAggregation type errors, blank pages caused by a master ng-if),
+  field typing/renaming issues between datasets, or any question related to the
   OpenDataSoft/Huwise ecosystem.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Huwise / ODS Widgets — Skill de référence
@@ -668,7 +670,73 @@ La syntaxe ODS est `period` en premier, `number` en second. Un warning Moment.js
 
 ---
 
-## 6. CSS — Bonnes pratiques pour portails ODS
+## 6. Debug ODSQL — erreurs de requête et typage des champs
+
+Diagnostic des erreurs ODSQL qui s'affichent dans la console du navigateur. Elles proviennent des requêtes envoyées à l'API par `ods-adv-analysis`, `ods-chart-query` et tout `select`/`where`/agrégation. Une page peut avoir **plusieurs erreurs identiques + une différente** : c'est souvent la différente qui casse tout.
+
+### 6.1 La page entière ne s'affiche pas (même pas le CSS)
+
+Quand **rien** ne se rend — ni les données, ni la mise en page — la cause est presque toujours un **`ng-if` maître** qui enveloppe tout le corps de la page et dépend d'une variable alimentée par une requête en échec.
+
+```html
+<!-- Une analyse calcule la dernière année -->
+<div ods-adv-analysis="yearData" ods-adv-analysis-context="ctxyear"
+     ods-adv-analysis-select="max(annee) as derniere">
+    {{ variables.derniere_annee = yearData[0].derniere; "" }}
+</div>
+...
+<!-- ...et tout le corps est conditionné par cette variable -->
+<div ng-if="variables.derniere_annee">
+    <!-- TOUTE la page -->
+</div>
+```
+
+Si `max(annee)` lève une erreur ODSQL, `variables.derniere_annee` reste `undefined` → le `ng-if` masque tout → page blanche, CSS compris.
+
+**Méthode de diagnostic :**
+1. Ouvrir la console et lire **chaque** message ODSQL, pas seulement le premier.
+2. Repérer la variable qui pilote le `ng-if` maître, remonter à l'analyse qui l'alimente — c'est l'« interrupteur » de la page.
+3. Vérifier le champ incriminé **par curl sur l'API** avant de toucher au code (`gulp` log les erreurs API silencieusement).
+
+### 6.2 « Unknown field: X »
+
+Le champ référencé dans un `select`/`group-by`/`where` n'existe pas dans **ce** dataset.
+
+Causes fréquentes :
+- **Colonne renommée en preprod** (régression) — ex. `deces_nb` devenu `deces_tot_nb` dans la version preprod du dataset.
+- **Même nom logique, datasets différents** — un champ peut exister dans certains datasets (ou copies) et pas dans d'autres. Un même nom de variable peut donc être **valide sur un contexte et invalide sur un autre**.
+
+⚠️ **Ne jamais faire un rechercher-remplacer global.** Lister les contextes par dataset, identifier ceux qui pointent le dataset fautif, et corriger **uniquement** ceux-là. Les contextes qui visent un autre dataset où le champ existe ne doivent pas être touchés.
+
+### 6.3 « StatAggregation only supports numeric or date expression »
+
+Une fonction d'agrégation (`max`, `min`, `sum`, `avg`…) est appliquée à un champ **typé string**. Ex. `max(annee)` échoue si `annee` est typé texte dans le dataset.
+
+Deux solutions :
+- **Retyper le champ** (numeric ou date) dans le back-office du dataset puis republier — corrige sans toucher au code (souvent le plus propre).
+- **Caster dans la requête** si le retypage est impossible.
+
+⚠️ **Effet de bord du retypage en date sur les filtres.** Un `where`/`q` qui compare le champ à un entier fonctionne sur un champ numérique mais peut casser une fois le champ retypé en **date** :
+
+```
+-- Casse potentiellement sur un champ date :
+annee >= 2021 AND annee <= 2024
+
+-- Adapter :
+year(annee) >= 2021 AND year(annee) <= 2024
+-- ou
+annee >= date'2021-01-01' AND annee <= date'2024-12-31'
+```
+
+Après un retypage de dataset, retester systématiquement les filtres `q`/`where` qui référencent le champ.
+
+### 6.4 Règle d'or — vérifier le dataset avant de corriger le code
+
+Les erreurs ODSQL traduisent un **écart entre le code et le schéma réel du dataset** (champ renommé, retypé, supprimé). Avant toute correction de code, confirmer le **nom exact** et le **type exact** du champ par curl sur l'API du dataset. Corriger le code à l'aveugle fait courir le risque de « réparer » un contexte sain ou de masquer la vraie régression côté dataset.
+
+---
+
+## 7. CSS — Bonnes pratiques pour portails ODS
 
 ### Variables CSS du portail
 Les thèmes ODS exposent des variables CSS :
@@ -703,7 +771,7 @@ Pour les portails gouvernementaux français :
 
 ---
 
-## 7. Sortie attendue
+## 8. Sortie attendue
 
 Quand on génère du code pour Huwise, fournir :
 1. **Un bloc HTML** à coller dans le panneau HTML du code éditeur
@@ -712,7 +780,7 @@ Quand on génère du code pour Huwise, fournir :
 
 ---
 
-## 8. Checklist avant livraison
+## 9. Checklist avant livraison
 
 **Contextes & données :**
 - [ ] Tous les contextes nécessaires sont déclarés dans le `ods-dataset-context`
@@ -736,3 +804,11 @@ Quand on génère du code pour Huwise, fournir :
 **Carte ODS :**
 - [ ] La carte partage le même `context="ctx"` que les filtres pour être synchronisée
 - [ ] `no-refit="false"` si on veut que la vue se recadre après filtrage
+
+**Debug ODSQL (si la page ne s'affiche pas ou erreurs console) :**
+- [ ] Chaque message ODSQL de la console est lu (pas seulement le premier) — identifier l'erreur « différente » qui éteint la page
+- [ ] Si page blanche : remonter le `ng-if` maître jusqu'à l'analyse qui l'alimente
+- [ ] Nom et type des champs incriminés vérifiés **par curl** sur l'API avant correction
+- [ ] « Unknown field » corrigé **sélectivement** par contexte/dataset, jamais en rechercher-remplacer global
+- [ ] Aucune agrégation (`max`/`min`/`sum`/`avg`) sur un champ typé string
+- [ ] Après retypage d'un champ en date : filtres `q`/`where` comparant à un entier retestés (`year(...)` ou `date'...'`)
