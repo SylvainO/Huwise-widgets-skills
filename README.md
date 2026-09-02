@@ -1,4 +1,4 @@
-# huwise-widget-skills
+# Huwise-widgets-skills
 
 Skills Claude réutilisables pour l'écosystème **Huwise** (ex-OpenDataSoft).
 
@@ -38,7 +38,7 @@ La documentation officielle des widgets ODS à consulter en priorité :
 Copier l'URL raw du fichier `.md` et l'inclure dans votre system prompt ou dans votre configuration Claude Code :
 
 ```
-https://raw.githubusercontent.com/ornetti/huwise-widget-skills/main/huwise-ods-widgets.md
+https://raw.githubusercontent.com/SylvainO/Huwise-widgets-skills/main/huwise-ods-widgets.md
 ```
 
 ### Option 2 — Coller le contenu directement dans une conversation
@@ -62,7 +62,7 @@ Voir le skill Huwise pour les patterns ODS widgets.
 ## Structure du repo
 
 ```
-huwise-widget-skills/
+Huwise-widgets-skills/
 ├── README.md
 ├── huwise-ods-widgets.md   ← Widgets ODS, dashboards, cartes, tableaux
 ├── header-widgets.md       ← Header, navigation, menu responsive
